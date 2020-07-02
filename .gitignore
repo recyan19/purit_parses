@@ -1,1 +1,6 @@
 venv/
+.idea/
+geckodriver.log
+ghostdriver.log
+*.html
+*.csv
