@@ -16,9 +16,11 @@ class Parser:
         page = requests.get(url)
         return page
 
-    def _open_csv(self, filename='products.csv'):
-        f =  csv.writer(open(filename, 'w'))
-        f.writerow(['Name', 'Link'])
+    @staticmethod
+    def _open_csv(filename='products.csv'):
+        f = csv.writer(open(filename, 'w'))
+        f.writerow(['Код товара', 'Название_позиции', 'Поисковые_запросы', 'Описание',
+                    'Цена', 'Валюта', 'Ссылка_изображения', 'Продукт на сайте'])
         return f
 
     def _correct_url(self, url):
@@ -53,8 +55,8 @@ class Parser:
         category_links = self.parse_category_links()
         product_links = []
 
-        for link in category_links:
-            print("Fetching url", self._correct_url(link.get('href')))
+        for idx, link in enumerate(category_links, 1):
+            print(f"Fetching url #{idx}", self._correct_url(link.get('href')))
             soup = self.create_soup(link.get('href'))
             subcategegory_links = soup.find_all('a', attrs={'class': 'b-product-groups-list__image-link'})
 
@@ -69,8 +71,8 @@ class Parser:
 
                 if len(links) > 1:
                     links.pop()
-                    for next_link in links:
-                        print("Fetching url", self._correct_url(next_link.get('href')))
+                    for idx_x, next_link in enumerate(links, 1):
+                        print(f"Fetching next page of url #{idx_x}", self._correct_url(next_link.get('href')))
                         next_page_soup = self.create_soup(next_link.get('href'))
                         products = next_page_soup.find_all('a', attrs={'class': 'b-product-list__image-link'})
                         if not products:
@@ -78,8 +80,8 @@ class Parser:
                         product_links.extend(products)
                         print(f"Found {len(products)} link to products")
             else:
-                for sub_cat_link in subcategegory_links:
-                    print("Fetching url", self._correct_url(sub_cat_link.get('href')))
+                for idx_y, sub_cat_link in enumerate(subcategegory_links):
+                    print(f"Fetching sub_url #{idx_y}", self._correct_url(sub_cat_link.get('href')))
                     sub_cat_soup = self.create_soup(sub_cat_link.get('href'))
 
                     sub_next_page_links = sub_cat_soup.find_all('a', attrs={'class': 'b-pager__link'})
@@ -112,8 +114,36 @@ class Parser:
             self.file.writerow([name, link])
         return True
 
+    @staticmethod
+    def get_keywords(soup):
+        title = soup.find('meta', attrs={'property': 'og:title'}).get('content')
+        first = title.split('.')[0]
+        if len(title.split('.')) > 1:
+            second = title.split('.')[1].split('&')
+            result = (first + '.'.join(second)).replace('"', '').replace('.', ',')
+        else:
+            result = first
+        return result
+
+    def parse_products(self):
+        product_links = self.parse_product_links()
+        for idx, link in enumerate(product_links):
+            l = self._correct_url(link.get('href'))
+            print(f"Parsing url #{idx} {l}")
+            soup = self.create_soup(link.get('href'))
+            product_code = l[len(self.base_url):].split('-')[0][2:]
+            product_link = l
+            product_name = soup.find('span', attrs={'class': 'b-caption__text'}).contents[0]
+            product_keywords = self.get_keywords(soup)
+            product_description = soup.find('div', attrs={'class': 'b-tab-list__item'})
+            product_price = soup.find('span', attrs={'data-qaid': 'product_price'}).contents[0]
+            product_currency = 'UAH'
+            product_image = self._correct_url(soup.find('img', attrs={'class': 'b-pictures__img'}).get('src'))
+            self.file.writerow([product_code, product_name, product_keywords, product_description,
+                                product_price, product_currency, product_image, product_link])
+
     def parse(self):
-        return self.write_csv()
+        return self.parse_products()
 
 
 if __name__ == "__main__":
